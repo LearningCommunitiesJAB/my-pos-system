@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Report</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Link to your external CSS file -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="min-h-screen bg-gray-100 flex flex-col items-center p-4">
+
+    <!-- Message Box -->
+    <div id="message-box" class="message-box hidden"></div>
+
+    <div class="w-full max-w-6xl bg-white rounded-lg shadow-xl p-6 md:p-8 mt-8">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">Transaction Report</h1>
+
+        <div class="report-section bg-gray-50 p-6 rounded-lg shadow-inner">
+            <div id="report-table-container">
+                <p class="text-gray-500 text-center py-8">No transactions recorded yet.</p>
+            </div>
+            <div class="mt-8 text-center">
+                <button id="back-to-pos-from-report-btn" class="px-6 py-3 bg-blue-600 text-white font-bold rounded-md shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 text-lg">
+                    Back to POS
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Link to Report-specific JavaScript file -->
+    <script type="module" src="report.js"></script>
+</body>
+</html>
