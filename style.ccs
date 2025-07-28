@@ -24,10 +24,4 @@ body {
 .message-box.error {
     background-color: #f44336; /* Red */
 }
-/* Hide pages by default */
-.page-section {
-    display: none;
-}
-.page-section.active {
-    display: block;
-}
+/* Removed .page-section rules as pages are now separate HTML files */
