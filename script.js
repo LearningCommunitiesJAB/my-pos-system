@@ -1,19 +1,15 @@
-// No Firebase imports needed for local storage
+// No Firebase or Local Storage imports needed
 // import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 // import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Global variables (no longer from Canvas environment)
-const appId = 'local-pos-app'; // A simple identifier for local storage key
-// No firebaseConfig or initialAuthToken needed
+// IMPORTANT: You MUST replace this with the Web App URL you get after deploying your Google Apps Script.
+const GOOGLE_APPS_SCRIPT_WEB_APP_URL = https://script.google.com/a/macros/hawaii.edu/s/AKfycbw6UL14oiz_jFrfvyv7uGEtFqSgJwNP6BavO0XrLCjtPL_Dykk_evaGPaq7PKV8h2Q/exec;
 
-let app; // Not used, but kept for consistency in removed code comments
-let db; // Not used
-let auth; // Not used
-let currentUserId = 'Local User'; // Default user for local storage
-let isAuthReady = true; // Always ready for local storage
+// Global variables (no external dependencies for data persistence or auth)
+let currentUserId = 'POS Operator'; // A simple identifier for the current session
 let cartItems = [];
-let recentOrders = []; // This will be loaded/saved from localStorage
+let recentOrders = []; // This will hold orders only for the current session's report
 const TAX_RATE = 0.00; // No sales tax
 
 // Product data
@@ -269,34 +265,10 @@ function renderReportTable() {
     reportTableContainer.innerHTML = tableHtml;
 }
 
-// --- Local Storage Functions ---
-
+// --- Order ID Generator ---
 // Generates a simple unique ID for orders
 function generateOrderId() {
     return 'order_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-}
-
-function saveOrdersToLocalStorage() {
-    try {
-        localStorage.setItem(`${appId}-orders`, JSON.stringify(recentOrders));
-    } catch (e) {
-        console.error("Error saving orders to local storage:", e);
-        showMessage("Error saving orders locally.", true);
-    }
-}
-
-function loadOrdersFromLocalStorage() {
-    try {
-        const storedOrders = localStorage.getItem(`${appId}-orders`);
-        if (storedOrders) {
-            recentOrders = JSON.parse(storedOrders);
-            // Ensure orders are sorted by timestamp (most recent first)
-            recentOrders.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
-        }
-    } catch (e) {
-        console.error("Error loading orders from local storage:", e);
-        showMessage("Error loading previous orders locally.", true);
-    }
 }
 
 // --- Core Logic Functions ---
@@ -376,17 +348,38 @@ async function completeOrder() {
         customer: customerInfo,
     };
 
-    recentOrders.unshift(orderData); // Add new order to the beginning of the array
-    saveOrdersToLocalStorage(); // Save updated orders to local storage
+    // --- Send order data to Google Apps Script ---
+    try {
+        showMessage('Sending order to Google Sheet...');
+        const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, {
+            method: 'POST',
+            mode: 'cors', // Required for cross-origin requests
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(orderData),
+        });
 
-    showMessage(`Order completed successfully! Order ID: ${orderData.id.substring(0,8)}...`);
-    clearCart();
-    customerInfo = { name: '', email: '', phone: '', paymentMethod: '' }; // Reset customer info
-    customerNameInput.value = '';
-    customerEmailInput.value = '';
-    customerPhoneInput.value = '';
-    paymentMethodRadios.forEach(radio => radio.checked = false);
-    switchPage('pos');
+        const result = await response.json();
+
+        if (result.success) {
+            recentOrders.unshift(orderData); // Add to local array for current session's report
+            showMessage(`Order completed successfully! Order ID: ${orderData.id.substring(0,8)}...`);
+            clearCart();
+            customerInfo = { name: '', email: '', phone: '', paymentMethod: '' }; // Reset customer info
+            customerNameInput.value = '';
+            customerEmailInput.value = '';
+            customerPhoneInput.value = '';
+            paymentMethodRadios.forEach(radio => radio.checked = false);
+            switchPage('pos');
+        } else {
+            showMessage(`Error: ${result.error || 'Failed to record order in Google Sheet.'}`, true);
+            console.error("Apps Script Error:", result.error);
+        }
+    } catch (e) {
+        console.error("Network or Apps Script communication error:", e);
+        showMessage(`Error: Could not connect to Google Sheet. ${e.message}`, true);
+    }
 }
 
 function closeSession() {
@@ -412,10 +405,9 @@ backToPosFromReportBtn.addEventListener('click', () => switchPage('pos'));
 
 // --- Initialization ---
 
-// Renamed from initializeFirebase to reflect local storage
 function initializePOS() {
-    userIdSpan.textContent = currentUserId; // Display "Local User"
-    loadOrdersFromLocalStorage(); // Load any previously saved orders
+    userIdSpan.textContent = currentUserId; // Display "POS Operator"
+    // No loading from local storage as data will be sent to Google Sheet
     renderProductList(poloProducts, poloProductsList);
     renderProductList(scrubProducts, scrubProductsList);
     renderProductList(flaskProducts, flaskProductsList);
