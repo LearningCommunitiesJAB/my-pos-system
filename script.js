@@ -1,19 +1,19 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// No Firebase imports needed for local storage
+// import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+// import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+// import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Global variables provided by the Canvas environment
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-pos-app';
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+// Global variables (no longer from Canvas environment)
+const appId = 'local-pos-app'; // A simple identifier for local storage key
+// No firebaseConfig or initialAuthToken needed
 
-let app;
-let db;
-let auth;
-let currentUserId;
-let isAuthReady = false;
+let app; // Not used, but kept for consistency in removed code comments
+let db; // Not used
+let auth; // Not used
+let currentUserId = 'Local User'; // Default user for local storage
+let isAuthReady = true; // Always ready for local storage
 let cartItems = [];
-let recentOrders = [];
+let recentOrders = []; // This will be loaded/saved from localStorage
 const TAX_RATE = 0.00; // No sales tax
 
 // Product data
@@ -259,14 +259,44 @@ function renderReportTable() {
                             <span class="text-xs">${order.customer?.phone || ''}</span>
                         </td>
                         <td class="py-3 px-4 text-sm text-gray-600">${order.customer?.paymentMethod || 'N/A'}</td>
-                        <td class="py-3 px-4 text-sm text-gray-600">${order.placedBy.substring(0, 8)}...</td>
-                        <td class="py-3 px-4 text-sm text-gray-600">${order.timestamp?.toDate().toLocaleString()}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">${order.placedBy || 'N/A'}</td>
+                        <td class="py-3 px-4 text-sm text-gray-600">${new Date(order.timestamp).toLocaleString()}</td>
                     </tr>
                 `).join('')}
             </tbody>
         </table>
     `;
     reportTableContainer.innerHTML = tableHtml;
+}
+
+// --- Local Storage Functions ---
+
+// Generates a simple unique ID for orders
+function generateOrderId() {
+    return 'order_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+}
+
+function saveOrdersToLocalStorage() {
+    try {
+        localStorage.setItem(`${appId}-orders`, JSON.stringify(recentOrders));
+    } catch (e) {
+        console.error("Error saving orders to local storage:", e);
+        showMessage("Error saving orders locally.", true);
+    }
+}
+
+function loadOrdersFromLocalStorage() {
+    try {
+        const storedOrders = localStorage.getItem(`${appId}-orders`);
+        if (storedOrders) {
+            recentOrders = JSON.parse(storedOrders);
+            // Ensure orders are sorted by timestamp (most recent first)
+            recentOrders.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+        }
+    } catch (e) {
+        console.error("Error loading orders from local storage:", e);
+        showMessage("Error loading previous orders locally.", true);
+    }
 }
 
 // --- Core Logic Functions ---
@@ -321,11 +351,6 @@ function handleCustomerInfoChange(e) {
 }
 
 async function completeOrder() {
-    if (!db || !currentUserId) {
-        showMessage('Database not ready. Please wait or refresh.', true);
-        return;
-    }
-
     // Basic validation for customer info
     if (!customerInfo.name || !customerInfo.email || !customerInfo.phone || !customerInfo.paymentMethod) {
         showMessage('Error: Please fill in all customer details and select a payment method.', true);
@@ -335,6 +360,7 @@ async function completeOrder() {
     const { newSubtotal, newTax, newTotal } = calculateTotals(); // Recalculate just before saving
 
     const orderData = {
+        id: generateOrderId(), // Generate a unique ID for the order
         items: cartItems.map(item => ({
             id: item.id,
             name: item.name,
@@ -345,25 +371,22 @@ async function completeOrder() {
         subtotal: newSubtotal,
         tax: newTax,
         total: newTotal,
-        timestamp: serverTimestamp(),
+        timestamp: new Date().toISOString(), // Use ISO string for consistent date storage
         placedBy: currentUserId,
         customer: customerInfo,
     };
 
-    try {
-        const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/orders`), orderData);
-        showMessage(`Order completed successfully! Order ID: ${docRef.id}`);
-        clearCart();
-        customerInfo = { name: '', email: '', phone: '', paymentMethod: '' }; // Reset customer info
-        customerNameInput.value = '';
-        customerEmailInput.value = '';
-        customerPhoneInput.value = '';
-        paymentMethodRadios.forEach(radio => radio.checked = false);
-        switchPage('pos');
-    } catch (e) {
-        console.error("Error adding document: ", e);
-        showMessage(`Error completing order: ${e.message}`, true);
-    }
+    recentOrders.unshift(orderData); // Add new order to the beginning of the array
+    saveOrdersToLocalStorage(); // Save updated orders to local storage
+
+    showMessage(`Order completed successfully! Order ID: ${orderData.id.substring(0,8)}...`);
+    clearCart();
+    customerInfo = { name: '', email: '', phone: '', paymentMethod: '' }; // Reset customer info
+    customerNameInput.value = '';
+    customerEmailInput.value = '';
+    customerPhoneInput.value = '';
+    paymentMethodRadios.forEach(radio => radio.checked = false);
+    switchPage('pos');
 }
 
 function closeSession() {
@@ -389,60 +412,17 @@ backToPosFromReportBtn.addEventListener('click', () => switchPage('pos'));
 
 // --- Initialization ---
 
-async function initializeFirebase() {
-    try {
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUserId = user.uid;
-                userIdSpan.textContent = currentUserId;
-                isAuthReady = true;
-                // Start listening to orders only after auth is ready
-                startOrderListener();
-            } else {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            }
-        });
-    } catch (error) {
-        console.error("Error setting up Firebase:", error);
-        showMessage(`Error: Could not connect to database. ${error.message}`, true);
-    }
-}
-
-function startOrderListener() {
-    if (db && isAuthReady) {
-        const ordersCollectionRef = collection(db, `artifacts/${appId}/public/data/orders`);
-        const q = query(ordersCollectionRef);
-
-        onSnapshot(q, (snapshot) => {
-            recentOrders = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            recentOrders.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
-            // Re-render report table if on report page
-            if (reportPage.classList.contains('active')) {
-                renderReportTable();
-            }
-        }, (error) => {
-            console.error("Error fetching recent orders:", error);
-            showMessage(`Error fetching orders: ${error.message}`, true);
-        });
-    }
-}
-
-// Initial render on page load
-window.onload = function() {
-    initializeFirebase();
+// Renamed from initializeFirebase to reflect local storage
+function initializePOS() {
+    userIdSpan.textContent = currentUserId; // Display "Local User"
+    loadOrdersFromLocalStorage(); // Load any previously saved orders
     renderProductList(poloProducts, poloProductsList);
     renderProductList(scrubProducts, scrubProductsList);
     renderProductList(flaskProducts, flaskProductsList);
     renderCartItems();
+}
+
+// Initial render on page load
+window.onload = function() {
+    initializePOS();
 };
