@@ -1,5 +1,5 @@
-// IMPORTANT: You MUST replace this with the Web App URL you get after deploying your Google Apps Script.
-const GOOGLE_APPS_SCRIPT_WEB_APP_URL = https://script.google.com/a/macros/hawaii.edu/s/AKfycbw6UL14oiz_jFrfvyv7uGEtFqSgJwNP6BavO0XrLCjtPL_Dykk_evaGPaq7PKV8h2Q/exec; // Make sure to replace this!
+// IMPORTANT: This is your Google Apps Script Web App URL.
+const GOOGLE_APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/a/macros/hawaii.edu/s/AKfycbw6UL14oiz_jFrfvyv7uGEtFqSgJwNP6BavO0XrLCjtPL_Dykk_evaGPaq7PKV8h2Q/exec';
 
 // Global variables for the main POS page
 let currentUserId = 'POS Operator'; // A simple identifier for the current session
