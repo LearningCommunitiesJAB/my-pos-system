@@ -1,7 +1,7 @@
 // This script handles the checkout page logic.
 
 // IMPORTANT: You MUST replace this with the Web App URL you get after deploying your Google Apps Script.
-const GOOGLE_APPS_SCRIPT_WEB_APP_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE'; // Make sure to replace this!
+const GOOGLE_APPS_SCRIPT_WEB_APP_URL = https://script.google.com/a/macros/hawaii.edu/s/AKfycbw6UL14oiz_jFrfvyv7uGEtFqSgJwNP6BavO0XrLCjtPL_Dykk_evaGPaq7PKV8h2Q/exec; // Make sure to replace this!
 
 let cartItems = [];
 let currentTotal = 0;
