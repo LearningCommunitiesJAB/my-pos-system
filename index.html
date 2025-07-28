@@ -350,14 +350,15 @@
         }
 
         function switchPage(pageId) {
+            // Remove 'active' from all main page sections first
             posPage.classList.remove('active');
             checkoutPage.classList.remove('active');
             reportPage.classList.remove('active');
 
+            // Add 'active' only to the requested page
             if (pageId === 'pos') {
                 posPage.classList.add('active');
             } else if (pageId === 'checkout') {
-                posPage.classList.add('active'); // Keep POS visible on checkout for context
                 checkoutPage.classList.add('active');
                 renderCheckoutOrderSummary();
             } else if (pageId === 'report') {
@@ -689,3 +690,4 @@
     </script>
 </body>
 </html>
+
