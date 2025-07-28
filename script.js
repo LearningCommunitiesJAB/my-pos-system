@@ -1,10 +1,8 @@
 // No Firebase or Local Storage imports needed
-// import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-// import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-// import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// The previous Firebase imports were causing issues and are now removed.
 
 // IMPORTANT: You MUST replace this with the Web App URL you get after deploying your Google Apps Script.
-const GOOGLE_APPS_SCRIPT_WEB_APP_URL = https://script.google.com/a/macros/hawaii.edu/s/AKfycbw6UL14oiz_jFrfvyv7uGEtFqSgJwNP6BavO0XrLCjtPL_Dykk_evaGPaq7PKV8h2Q/exec;
+const GOOGLE_APPS_SCRIPT_WEB_APP_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE'; // Make sure to replace this!
 
 // Global variables (no external dependencies for data persistence or auth)
 let currentUserId = 'POS Operator'; // A simple identifier for the current session
@@ -412,6 +410,7 @@ function initializePOS() {
     renderProductList(scrubProducts, scrubProductsList);
     renderProductList(flaskProducts, flaskProductsList);
     renderCartItems();
+    console.log("POS System Initialized!"); // Added for debugging
 }
 
 // Initial render on page load
