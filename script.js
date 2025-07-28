@@ -1,16 +1,14 @@
-// No Firebase or Local Storage imports needed
-// The previous Firebase imports were causing issues and are now removed.
-
 // IMPORTANT: You MUST replace this with the Web App URL you get after deploying your Google Apps Script.
-const GOOGLE_APPS_SCRIPT_WEB_APP_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE'; // Make sure to replace this!
+const GOOGLE_APPS_SCRIPT_WEB_APP_URL = https://script.google.com/a/macros/hawaii.edu/s/AKfycbw6UL14oiz_jFrfvyv7uGEtFqSgJwNP6BavO0XrLCjtPL_Dykk_evaGPaq7PKV8h2Q/exec; // Make sure to replace this!
 
-// Global variables (no external dependencies for data persistence or auth)
+// Global variables for the main POS page
 let currentUserId = 'POS Operator'; // A simple identifier for the current session
 let cartItems = [];
-let recentOrders = []; // This will hold orders only for the current session's report
+let recentOrders = []; // Will be loaded/saved from localStorage for the report
+
 const TAX_RATE = 0.00; // No sales tax
 
-// Product data
+// Product data (remains the same)
 const poloProducts = [
     { id: 'polo_shirt_xs', name: 'Polo Shirt (XS)', price: 35.00, type: 'polo', size: 'XS' },
     { id: 'polo_shirt_s', name: 'Polo Shirt (S)', price: 35.00, type: 'polo', size: 'S' },
@@ -43,10 +41,6 @@ const quantities = allProducts.reduce((acc, product) => ({ ...acc, [product.id]:
 const userIdSpan = document.getElementById('user-id');
 const messageBox = document.getElementById('message-box');
 
-const posPage = document.getElementById('pos-page');
-const checkoutPage = document.getElementById('checkout-page');
-const reportPage = document.getElementById('report-page');
-
 const poloProductsList = document.getElementById('polo-products-list');
 const scrubProductsList = document.getElementById('scrub-products-list');
 const flaskProductsList = document.getElementById('flask-products-list');
@@ -58,24 +52,6 @@ const proceedToCheckoutBtn = document.getElementById('proceed-to-checkout-btn');
 const clearCartBtn = document.getElementById('clear-cart-btn');
 const closeSessionBtn = document.getElementById('close-session-btn');
 
-const customerNameInput = document.getElementById('customer-name');
-const customerEmailInput = document.getElementById('customer-email');
-const customerPhoneInput = document.getElementById('customer-phone');
-const paymentMethodRadios = document.querySelectorAll('input[name="paymentMethod"]');
-const checkoutOrderSummary = document.getElementById('checkout-order-summary');
-const checkoutTotalSpan = document.getElementById('checkout-total');
-const completeOrderBtn = document.getElementById('complete-order-btn');
-const backToPosFromCheckoutBtn = document.getElementById('back-to-pos-from-checkout-btn');
-
-const reportTableContainer = document.getElementById('report-table-container');
-const backToPosFromReportBtn = document.getElementById('back-to-pos-from-report-btn');
-
-let customerInfo = {
-    name: '',
-    email: '',
-    phone: '',
-    paymentMethod: '',
-};
 
 // --- Utility Functions ---
 
@@ -98,25 +74,52 @@ function calculateTotals() {
 
     subtotalSpan.textContent = `$${newSubtotal.toFixed(2)}`;
     totalSpan.textContent = `$${newTotal.toFixed(2)}`;
-    checkoutTotalSpan.textContent = `$${newTotal.toFixed(2)}`; // Update checkout total
     return { newSubtotal, newTax, newTotal };
 }
 
-function switchPage(pageId) {
-    // Remove 'active' from all main page sections first
-    posPage.classList.remove('active');
-    checkoutPage.classList.remove('active');
-    reportPage.classList.remove('active');
+// --- Local Storage Functions for Main Page ---
+function saveCartToLocalStorage() {
+    try {
+        localStorage.setItem('pos-cart', JSON.stringify(cartItems));
+        localStorage.setItem('pos-cart-total', JSON.stringify(calculateTotals().newTotal)); // Save total too
+    } catch (e) {
+        console.error("Error saving cart to local storage:", e);
+        showMessage("Error saving cart locally.", true);
+    }
+}
 
-    // Add 'active' only to the requested page
-    if (pageId === 'pos') {
-        posPage.classList.add('active');
-    } else if (pageId === 'checkout') {
-        checkoutPage.classList.add('active');
-        renderCheckoutOrderSummary();
-    } else if (pageId === 'report') {
-        reportPage.classList.add('active');
-        renderReportTable();
+function loadCartFromLocalStorage() {
+    try {
+        const storedCart = localStorage.getItem('pos-cart');
+        if (storedCart) {
+            cartItems = JSON.parse(storedCart);
+        }
+    } catch (e) {
+        console.error("Error loading cart from local storage:", e);
+        showMessage("Error loading previous cart locally.", true);
+    }
+}
+
+function saveRecentOrdersToLocalStorage() {
+    try {
+        localStorage.setItem('pos-recent-orders', JSON.stringify(recentOrders));
+    } catch (e) {
+        console.error("Error saving recent orders to local storage:", e);
+        showMessage("Error saving recent orders locally.", true);
+    }
+}
+
+function loadRecentOrdersFromLocalStorage() {
+    try {
+        const storedOrders = localStorage.getItem('pos-recent-orders');
+        if (storedOrders) {
+            recentOrders = JSON.parse(storedOrders);
+            // Ensure orders are sorted by timestamp (most recent first)
+            recentOrders.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
+        }
+    } catch (e) {
+        console.error("Error loading recent orders from local storage:", e);
+        showMessage("Error loading previous orders locally.", true);
     }
 }
 
@@ -204,71 +207,6 @@ function renderCartItems() {
     calculateTotals();
 }
 
-function renderCheckoutOrderSummary() {
-    checkoutOrderSummary.innerHTML = '';
-    cartItems.forEach(item => {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = "flex justify-between text-gray-700";
-        itemDiv.innerHTML = `
-            <span>${item.name} (x${item.quantity})</span>
-            <span>$${(item.quantity * item.price).toFixed(2)}</span>
-        `;
-        checkoutOrderSummary.appendChild(itemDiv);
-    });
-}
-
-function renderReportTable() {
-    reportTableContainer.innerHTML = '';
-    if (recentOrders.length === 0) {
-        reportTableContainer.innerHTML = '<p class="text-gray-500 text-center py-8">No transactions recorded yet.</p>';
-        return;
-    }
-
-    const tableHtml = `
-        <table class="min-w-full bg-white rounded-lg shadow-sm">
-            <thead class="bg-gray-200">
-                <tr>
-                    <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700 uppercase rounded-tl-lg">Order ID</th>
-                    <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700 uppercase">Items</th>
-                    <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700 uppercase">Total</th>
-                    <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700 uppercase">Customer</th>
-                    <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700 uppercase">Payment</th>
-                    <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700 uppercase">Placed By</th>
-                    <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700 uppercase rounded-tr-lg">Timestamp</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${recentOrders.map(order => `
-                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150">
-                        <td class="py-3 px-4 text-sm text-gray-800 font-medium">${order.id.substring(0, 8)}...</td>
-                        <td class="py-3 px-4 text-sm text-gray-700">
-                            <ul class="list-disc list-inside">
-                                ${order.items.map(item => `<li>${item.name} (x${item.quantity})</li>`).join('')}
-                            </ul>
-                        </td>
-                        <td class="py-3 px-4 text-sm text-gray-800 font-semibold">$${order.total.toFixed(2)}</td>
-                        <td class="py-3 px-4 text-sm text-gray-600">
-                            ${order.customer?.name || 'N/A'} <br/>
-                            <span class="text-xs">${order.customer?.email || ''}</span> <br/>
-                            <span class="text-xs">${order.customer?.phone || ''}</span>
-                        </td>
-                        <td class="py-3 px-4 text-sm text-gray-600">${order.customer?.paymentMethod || 'N/A'}</td>
-                        <td class="py-3 px-4 text-sm text-gray-600">${order.placedBy || 'N/A'}</td>
-                        <td class="py-3 px-4 text-sm text-gray-600">${new Date(order.timestamp).toLocaleString()}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-    reportTableContainer.innerHTML = tableHtml;
-}
-
-// --- Order ID Generator ---
-// Generates a simple unique ID for orders
-function generateOrderId() {
-    return 'order_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-}
-
 // --- Core Logic Functions ---
 
 function addToCart(product) {
@@ -286,6 +224,7 @@ function addToCart(product) {
     }
     showMessage(`${quantity} x ${product.name} added to cart.`);
     renderCartItems();
+    saveCartToLocalStorage(); // Save cart after every change
 }
 
 function removeFromCart(index) {
@@ -293,6 +232,7 @@ function removeFromCart(index) {
         const removedItem = cartItems.splice(index, 1);
         showMessage(`${removedItem[0].name} removed from cart.`);
         renderCartItems();
+        saveCartToLocalStorage(); // Save cart after every change
     }
 }
 
@@ -300,6 +240,7 @@ function clearCart() {
     cartItems = [];
     showMessage('Cart cleared.');
     renderCartItems();
+    saveCartToLocalStorage(); // Clear cart in local storage
 }
 
 function initiateCheckout() {
@@ -307,83 +248,16 @@ function initiateCheckout() {
         showMessage('Your cart is empty. Please add items before proceeding to checkout.', true);
         return;
     }
-    showMessage('Proceeding to checkout...');
-    switchPage('checkout');
-}
-
-function handleCustomerInfoChange(e) {
-    const { name, value, type, checked } = e.target;
-    if (type === 'radio') {
-        customerInfo[name] = value;
-    } else {
-        customerInfo[name] = value;
-    }
-}
-
-async function completeOrder() {
-    // Basic validation for customer info
-    if (!customerInfo.name || !customerInfo.email || !customerInfo.phone || !customerInfo.paymentMethod) {
-        showMessage('Error: Please fill in all customer details and select a payment method.', true);
-        return;
-    }
-
-    const { newSubtotal, newTax, newTotal } = calculateTotals(); // Recalculate just before saving
-
-    const orderData = {
-        id: generateOrderId(), // Generate a unique ID for the order
-        items: cartItems.map(item => ({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            itemTotal: item.price * item.quantity,
-        })),
-        subtotal: newSubtotal,
-        tax: newTax,
-        total: newTotal,
-        timestamp: new Date().toISOString(), // Use ISO string for consistent date storage
-        placedBy: currentUserId,
-        customer: customerInfo,
-    };
-
-    // --- Send order data to Google Apps Script ---
-    try {
-        showMessage('Sending order to Google Sheet...');
-        const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, {
-            method: 'POST',
-            mode: 'cors', // Required for cross-origin requests
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(orderData),
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            recentOrders.unshift(orderData); // Add to local array for current session's report
-            showMessage(`Order completed successfully! Order ID: ${orderData.id.substring(0,8)}...`);
-            clearCart();
-            customerInfo = { name: '', email: '', phone: '', paymentMethod: '' }; // Reset customer info
-            customerNameInput.value = '';
-            customerEmailInput.value = '';
-            customerPhoneInput.value = '';
-            paymentMethodRadios.forEach(radio => radio.checked = false);
-            switchPage('pos');
-        } else {
-            showMessage(`Error: ${result.error || 'Failed to record order in Google Sheet.'}`, true);
-            console.error("Apps Script Error:", result.error);
-        }
-    } catch (e) {
-        console.error("Network or Apps Script communication error:", e);
-        showMessage(`Error: Could not connect to Google Sheet. ${e.message}`, true);
-    }
+    // Save cart data to local storage before redirecting
+    saveCartToLocalStorage();
+    window.location.href = 'checkout.html'; // Redirect to the new checkout page
 }
 
 function closeSession() {
     clearCart(); // Clear current cart
-    showMessage('Session closed. Displaying transaction report.');
-    switchPage('report'); // Navigate to the report page
+    // No need to save recentOrders here, as they are accumulated in checkout.js
+    // and the report page will load them directly from localStorage.
+    window.location.href = 'report.html'; // Redirect to the new report page
 }
 
 // --- Event Listeners ---
@@ -391,26 +265,23 @@ proceedToCheckoutBtn.addEventListener('click', initiateCheckout);
 clearCartBtn.addEventListener('click', clearCart);
 closeSessionBtn.addEventListener('click', closeSession);
 
-customerNameInput.addEventListener('input', handleCustomerInfoChange);
-customerEmailInput.addEventListener('input', handleCustomerInfoChange);
-customerPhoneInput.addEventListener('input', handleCustomerInfoChange);
-paymentMethodRadios.forEach(radio => {
-    radio.addEventListener('change', handleCustomerInfoChange);
-});
-completeOrderBtn.addEventListener('click', completeOrder);
-backToPosFromCheckoutBtn.addEventListener('click', () => switchPage('pos'));
-backToPosFromReportBtn.addEventListener('click', () => switchPage('pos'));
 
 // --- Initialization ---
 
 function initializePOS() {
-    userIdSpan.textContent = currentUserId; // Display "POS Operator"
-    // No loading from local storage as data will be sent to Google Sheet
-    renderProductList(poloProducts, poloProductsList);
-    renderProductList(scrubProducts, scrubProductsList);
-    renderProductList(flaskProducts, flaskProductsList);
-    renderCartItems();
-    console.log("POS System Initialized!"); // Added for debugging
+    try {
+        userIdSpan.textContent = currentUserId; // Display "POS Operator"
+        loadCartFromLocalStorage(); // Load cart on page load
+        loadRecentOrdersFromLocalStorage(); // Load recent orders for the report page
+        renderProductList(poloProducts, poloProductsList);
+        renderProductList(scrubProducts, scrubProductsList);
+        renderProductList(flaskProducts, flaskProductsList);
+        renderCartItems();
+        console.log("Main POS System Initialized!"); // Added for debugging
+    } catch (error) {
+        console.error("Error during POS system initialization:", error);
+        showMessage(`Error initializing POS: ${error.message}`, true);
+    }
 }
 
 // Initial render on page load
