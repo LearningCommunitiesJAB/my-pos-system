@@ -151,7 +151,7 @@ async function completeOrder() {
     // --- Send order data to Google Apps Script ---
     try {
         showMessage('Sending order to Google Sheet...');
-        const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, {'https://script.google.com/a/macros/hawaii.edu/s/AKfycbw6UL14oiz_jFrfvyv7uGEtFqSgJwNP6BavO0XrLCjtPL_Dykk_evaGPaq7PKV8h2Q/exec'}
+        const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, {
             method: 'POST',
             mode: 'cors', // Required for cross-origin requests
             headers: {
