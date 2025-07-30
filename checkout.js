@@ -1,7 +1,5 @@
 // This script handles the checkout page logic.
-
-// IMPORTANT: You MUST replace this with the Web App URL you get after deploying your Google Apps Script.
-const GOOGLE_APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/a/macros/hawaii.edu/s/AKfycbw6UL14oiz_jFrfvyv7uGEtFqSgJwNP6BavO0XrLCjtPL_Dykk_evaGPaq7PKV8h2Q/exec';
+// Removed GOOGLE_APPS_SCRIPT_WEB_APP_URL and fetch logic.
 
 let cartItems = [];
 let currentTotal = 0;
@@ -148,43 +146,21 @@ async function completeOrder() {
         customer: customerInfo,
     };
 
-    // --- Send order data to Google Apps Script ---
-    try {
-        showMessage('Sending order to Google Sheet...');
-        const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, {
-            method: 'POST',
-            mode: 'cors', // Required for cross-origin requests
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(orderData),
-        });
+    // --- Save order data to Local Storage ---
+    recentOrders.unshift(orderData); // Add to local array for current session's report
+    saveRecentOrdersToLocalStorage(); // Persist recent orders
+    clearCartInLocalStorage(); // Clear cart from local storage
+    showMessage(`Order completed successfully! Order ID: ${orderData.id.substring(0,8)}...`);
 
-        const result = await response.json();
+    // Reset customer info form fields
+    customerNameInput.value = '';
+    customerEmailInput.value = '';
+    customerPhoneInput.value = '';
+    paymentMethodRadios.forEach(radio => radio.checked = false);
+    customerInfo = { name: '', email: '', phone: '', paymentMethod: '' };
 
-        if (result.success) {
-            recentOrders.unshift(orderData); // Add to local array for current session's report
-            saveRecentOrdersToLocalStorage(); // Persist recent orders
-            clearCartInLocalStorage(); // Clear cart from local storage
-            showMessage(`Order completed successfully! Order ID: ${orderData.id.substring(0,8)}...`);
-
-            // Reset customer info form fields
-            customerNameInput.value = '';
-            customerEmailInput.value = '';
-            customerPhoneInput.value = '';
-            paymentMethodRadios.forEach(radio => radio.checked = false);
-            customerInfo = { name: '', email: '', phone: '', paymentMethod: '' };
-
-            // Redirect back to the main POS page
-            window.location.href = 'index.html';
-        } else {
-            showMessage(`Error: ${result.error || 'Failed to record order in Google Sheet.'}`, true);
-            console.error("Apps Script Error:", result.error);
-        }
-    } catch (e) {
-        console.error("Network or Apps Script communication error:", e);
-        showMessage(`Error: Could not connect to Google Sheet. ${e.message}`, true);
-    }
+    // Redirect back to the main POS page
+    window.location.href = 'index.html';
 }
 
 // --- Event Listeners ---
